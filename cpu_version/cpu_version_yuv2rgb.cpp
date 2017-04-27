@@ -1,0 +1,91 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+#include <memory.h>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <time.h>
+#define w 640
+#define h 480
+#define ysize w*h
+//======namespace=======//
+using namespace std;
+using namespace cv;
+//======================//
+//===========kernel function=========//
+void yuv2rgb(unsigned char *in_y ,unsigned char *in_u,unsigned char *in_v,unsigned char *out_r,unsigned char *out_g,unsigned char *out_b);
+
+//=================================//
+
+FILE *fp=fopen("input_video/1.yuv","rb");
+unsigned char *in_y=NULL,*in_u=NULL,*in_v=NULL,*out_r=NULL,*out_g=NULL,*out_b=NULL;
+
+int main()
+{
+	clock_t start,end;
+	int process_frmaecount=0;
+	float during_time=0,during[140]={0},total=0;
+	//=================memory allocte=================//	
+	in_y=(unsigned char*)malloc(sizeof(unsigned char)*ysize);
+	in_u=(unsigned char*)malloc(sizeof(unsigned char)*ysize/4);
+	in_v=(unsigned char*)malloc(sizeof(unsigned char)*ysize/4);
+	out_r=(unsigned char*)malloc(sizeof(unsigned char)*ysize);
+	out_g=(unsigned char*)malloc(sizeof(unsigned char)*ysize);
+	out_b=(unsigned char*)malloc(sizeof(unsigned char)*ysize);
+	//================================================//
+	Mat Frame(480,640,CV_8UC3);
+	while( fread(in_y,1,ysize,fp) != NULL)
+	{
+		fread(in_u,1,ysize/4,fp);
+		fread(in_v,1,ysize/4,fp);
+
+		start=clock();
+		yuv2rgb(in_y,in_u,in_v,out_r,out_g,out_b); //yuv2rgb kernel function
+		end=clock();
+		during_time=(float)end-start;
+		during[process_frmaecount]=during_time;
+		process_frmaecount++;
+		printf("frame%d using time=%fms\n",process_frmaecount,(during[process_frmaecount-1]/CLOCKS_PER_SEC)*1000);		
+		
+		//==========placed the bgr componet to Frame data struct=========//
+		for(int i=0;i<h*w;i++)
+		{
+			Frame.data[3*i]=out_b[i];
+			Frame.data[3*i+1]=out_g[i];
+			Frame.data[3*i+2]=out_r[i];
+		}
+		//==============================================================//
+		//=============display the result===============//
+		imshow("transsmisson",Frame);
+		cvWaitKey(10);
+		if(cvWaitKey(10)>=0) break;
+			
+	}
+
+	for(int i=0;i<process_frmaecount;i++)
+		total+=during[i];
+
+	printf("CPU average per frame using time=%fms\n",((total/process_frmaecount)/CLOCKS_PER_SEC)*1000);
+	printf("finish job\n");
+	free(in_y),free(in_u),free(in_v);
+	free(out_r),free(out_g),free(out_b);
+	fclose(fp);
+	return 0;
+}
+void yuv2rgb(unsigned char *in_y ,unsigned char *in_u,unsigned char *in_v,unsigned char *out_r,unsigned char *out_g,unsigned char *out_b)
+{
+	float rr=0,gg=0,bb=0;
+	for(int i=0;i<h;i++)
+	{
+		for(int j=0;j<w;j++)
+		{
+			rr=in_y[i*w+j]+(1.13983 * (in_v[(i>>1)*(w>>1)+(j>>1)] - 128));
+        		out_r[i*w+j]=(rr>255 ? 255:(rr<0 ? 0:rr));
+			gg= in_y[i*w+j] - (0.39465 * (in_u[(i>>1)*(w>>1)+(j>>1)] - 128) + (0.58060 * (in_v[(i>>1)*(w>>1)+(j>>1)] - 128)));
+        		out_g[i*w+j]=(gg>255 ? 255:(gg<0 ? 0:gg));
+        		bb= in_y[i*w+j] + (2.03211 * (in_u[(i>>1)*(w>>1)+(j>>1)] - 128));
+        		out_b[i*w+j]=(bb>255 ? 255:(bb<0 ? 0:bb));		
+		}
+	}	
+}
